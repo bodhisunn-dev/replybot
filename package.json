@@ -2,13 +2,12 @@
   "name": "replybot",
   "private": true,
   "type": "module",
- "scripts": {
-  "dev": "tsx watch server/index.ts",
-  "dev:client": "vite",
-  "build": "vite build",
-  "start": "tsx server/index.ts",
-  "db:push": "drizzle-kit push"
-
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "tsx server/index.ts",
+    "db:push": "drizzle-kit push"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.0.0",
