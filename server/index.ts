@@ -34,19 +34,21 @@ app.post("/webhook", express.raw({ type: "*/*" }), (req, res) => {
 
 const log = (accountId: number, line: string) => { console.log(line); db.insert(logs).values({ accountId, line }).catch(() => {}); };
 
-async function handleComment(igUserId: string, v: any) {
+async function handleComment(igUserId: string, v: any, preclaimed = false) {
   const [acc] = await db.select().from(accounts).where(eq(accounts.igUserId, igUserId));
   if (!acc) return console.log("webhook for unknown account", igUserId);
   if (!v?.id || !v.text) return;
   const who = v.from?.username ?? v.from?.id;
   if (v.parent_id) return log(acc.id, "skipped: reply to a comment by " + who);
-  if (String(v.from?.id) === igUserId) return log(acc.id, "skipped: your own comment. Comment from a different account to test.");
+  if (String(v.from?.id) === igUserId || (v.from?.username && v.from.username === acc.username)) return log(acc.id, "skipped: your own comment. Comment from a different account to test.");
   const text = String(v.text).toLowerCase();
   const list = await db.select().from(automations).where(and(eq(automations.accountId, acc.id), eq(automations.mediaId, String(v.media?.id)), eq(automations.active, true)));
   const hit = list.find((a) => a.triggers.some((t) => text.includes(t)));
   if (!hit) return log(acc.id, "no match: \"" + v.text + "\" by " + who + " (post " + v.media?.id + ", " + list.length + " active automation(s) on it)");
+  if (!preclaimed) {
   const claimed = await db.insert(handled).values({ commentId: String(v.id) }).onConflictDoNothing().returning();
   if (!claimed.length) return;
+  }
   const token = L.dec(acc.tokenEnc);
   if (hit.replies.length) {
     try {
@@ -143,6 +145,25 @@ app.get("/api/debug", auth, wrap(async (req, res) => {
   const sub = await L.igFetch(`${L.G}/me/subscribed_apps?` + new URLSearchParams({ subscribed_fields: "comments", access_token: t }), { method: "POST" }).catch((e) => ({ error: e.message }));
   res.json({ account: a.username, igUserId: a.igUserId, before, subscribeResult: sub, after: await get() });
 }));
+
+async function pollComments() {
+  const list = await db.select().from(automations).where(eq(automations.active, true));
+  for (const a of list) {
+    try {
+      const [acc] = await db.select().from(accounts).where(eq(accounts.id, a.accountId));
+      if (!acc) continue;
+      const j = await L.igFetch(`${L.G}/${a.mediaId}/comments?` + new URLSearchParams({ fields: "id,text,timestamp,username", limit: "50", access_token: L.dec(acc.tokenEnc) }));
+      for (const c of j.data ?? []) {
+        if (!c.text || new Date(c.timestamp) <= a.createdAt) continue;
+        const claimed = await db.insert(handled).values({ commentId: String(c.id) }).onConflictDoNothing().returning();
+        if (!claimed.length) continue;
+        await handleComment(acc.igUserId, { id: c.id, text: c.text, from: { username: c.username }, media: { id: a.mediaId } }, true);
+      }
+    } catch (e: any) { console.error("poll failed:", e.message); }
+  }
+}
+setInterval(pollComments, 60000);
+
 
 // ---------- Static client ----------
 const dist = path.resolve("client/dist");
