@@ -135,6 +135,15 @@ app.delete("/api/automations/:id", auth, wrap(async (req, res) => {
 }));
 app.get("/privacy", (_q, r) => r.send("<h1>Privacy Policy</h1><p>ReplyBot replies to comments on the connected Instagram account. It stores the account ID, username, an encrypted access token and the automations you create. It does not sell or share data. To request deletion, email you@example.com.</p>"));
 app.all("/data-deletion", express.urlencoded({ extended: false }), (_q, r) => r.json({ url: process.env.APP_BASE_URL + "/privacy", confirmation_code: crypto.randomBytes(8).toString("hex") }));
+app.get("/api/debug", auth, wrap(async (req, res) => {
+  const [a] = await db.select().from(accounts).where(eq(accounts.id, aid(req)));
+  const t = L.dec(a.tokenEnc);
+  const get = () => L.igFetch(`${L.G}/me/subscribed_apps?` + new URLSearchParams({ access_token: t })).catch((e) => ({ error: e.message }));
+  const before = await get();
+  const sub = await L.igFetch(`${L.G}/me/subscribed_apps?` + new URLSearchParams({ subscribed_fields: "comments", access_token: t }), { method: "POST" }).catch((e) => ({ error: e.message }));
+  res.json({ account: a.username, igUserId: a.igUserId, before, subscribeResult: sub, after: await get() });
+}));
+
 // ---------- Static client ----------
 const dist = path.resolve("client/dist");
 app.use(express.static(dist));
