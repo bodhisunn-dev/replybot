@@ -29,7 +29,7 @@ export const authUrl = () =>
     client_id: process.env.INSTAGRAM_APP_ID!,
     redirect_uri: redirectUri(),
     response_type: "code",
-    scope: "instagram_business_basic,instagram_business_manage_comments",
+    scope: "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages",
   });
 
 export async function connect(code: string) {
