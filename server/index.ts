@@ -133,7 +133,8 @@ app.delete("/api/automations/:id", auth, wrap(async (req, res) => {
   await db.delete(automations).where(and(eq(automations.id, +req.params.id), eq(automations.accountId, aid(req))));
   res.json({ ok: true });
 }));
-
+app.get("/privacy", (_q, r) => r.send("<h1>Privacy Policy</h1><p>ReplyBot replies to comments on the connected Instagram account. It stores the account ID, username, an encrypted access token and the automations you create. It does not sell or share data. To request deletion, email you@example.com.</p>"));
+app.all("/data-deletion", express.urlencoded({ extended: false }), (_q, r) => r.json({ url: process.env.APP_BASE_URL + "/privacy", confirmation_code: crypto.randomBytes(8).toString("hex") }));
 // ---------- Static client ----------
 const dist = path.resolve("client/dist");
 app.use(express.static(dist));
